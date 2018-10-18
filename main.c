@@ -31,7 +31,7 @@ struct TageElementoConstantePool{
 
 void imprimeTudoChar (char *, unsigned long);
 uint16_t getCounter(char *);
-tagConstante getConstante(char *, unsigned int );
+void getConstante(char *, unsigned int, tagConstante * );
 
 int main(int argc, char **argv){
 
@@ -40,19 +40,19 @@ int main(int argc, char **argv){
     long lSize=1;
     uint8_t i;
     uint16_t counter;
-    tagConstante tc;
+    tagConstante *tc;
 
     if(argc<3){
         printf("Sem argumentos \n");
     }else
         printf("Hah argumento!\n");
 
-    //Definições de projeto
-    //argumento 0 é o nome do executável
-    //argumento 1 é a opção
-    //argumento 2 é o nome do arquivo
+    //DefiniÃ§Ãµes de projeto
+    //argumento 0 Ã© o nome do executÃ¡vel
+    //argumento 1 Ã© a opÃ§Ã£o
+    //argumento 2 Ã© o nome do arquivo
 
-    //file é o .class
+    //file Ã© o .class
     if((file = fopen(argv[2], "rb"))==NULL){
             printf("erro, nao foi possivel abrir o arquivo\n");
     }
@@ -66,9 +66,11 @@ int main(int argc, char **argv){
 
     i=buffer[0];
     counter=getCounter(buffer);
-    printf("contador de cosntantes: 0x%x ou %d\n", counter, counter);
+    printf("contador de constantes: 0x%x ou %d\n", counter, counter);
     printf("buffer: %x\n", i);
-    tc=getConstante(buffer, 10);
+    //aloca em tc um vetor de tagConstante com o tamanho dito pelo contador de constantes
+    tc=(tagConstante*)malloc(sizeof(tagConstante)*counter)
+    getConstante(buffer, 10, tc);
 
     imprimeTudoChar(buffer, lSize);
 
@@ -92,12 +94,12 @@ uint16_t getCounter(char *buffer){
     return a += b;
 }
 
-tagConstante getConstante(char *buffer, unsigned int indice){
-    tagConstante u;
+void getConstante(char *buffer, unsigned int indice, tagConstante *u){
+    
     uint8_t a,b,c,d,e,f,g,h, T;
     uint64_t z;
     T=*(buffer+indice);
-    u.tag=T;
+    u->tag=T;
     indice++;
 
         if(T == TAG3){
@@ -106,7 +108,7 @@ tagConstante getConstante(char *buffer, unsigned int indice){
             c=*(buffer+indice+3);
             d=*(buffer+indice+4);
             z=(a<<24)+(b<<16)+(c<<8)+d;
-            u.valor.su4 = z;
+            u->valor.su4 = z;
         }
 
         if (T==TAG4 || T==TAG9 || T==TAG10 || T==TAG11 || T==TAG12 || T==TAG18){
@@ -115,7 +117,7 @@ tagConstante getConstante(char *buffer, unsigned int indice){
             c=*(buffer+indice+3);
             d=*(buffer+indice+4);
             z=(a<<24)+(b<<16)+(c<<8)+d;
-            u.valor.u4 = z;
+            u->valor.u4 = z;
             printf("tag: %d, valor(hex): %x\n", T, u.valor.u4);
         }
 
@@ -129,7 +131,7 @@ tagConstante getConstante(char *buffer, unsigned int indice){
             g=*(buffer+indice+7);
             h=*(buffer+indice+8);
             z=(a<<56)+(b<<48)+(c<<40)+(d<<32)+(e<<24)+(f<<16)+(g<<8)+h;
-            u.valor.su8 = z;
+            u->valor.su8 = z;
         }
 
          if(T==TAG6){
@@ -142,17 +144,16 @@ tagConstante getConstante(char *buffer, unsigned int indice){
             g=*(buffer+indice+7);
             h=*(buffer+indice+8);
             z=(a<<56)+(b<<48)+(c<<40)+(d<<32)+(e<<24)+(f<<16)+(g<<8)+h;
-            u.valor.u8 = z;
+            u->valor.u8 = z;
          }
 
           if(T==TAG7 || T==TAG8 || T==TAG16){
             a=*(buffer+indice+1);
             b=*(buffer+indice+2);
             z=(a<<8)+b;
-            u.valor.u2 = z;
+            u->valor.u2 = z;
           }
 
-        return u;
 };
 
 
