@@ -498,4 +498,3 @@ unsigned int getAttribute(char *buffer, unsigned int indice, attribute_info *u){
     printf("indice entregue: %d\n", (indice+i));
     return (indice+i);
 }
-
