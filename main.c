@@ -63,12 +63,14 @@ struct classCompleta{
     field_info  *fields;
     uint16_t    contadorMethod;
     method_info *methods;
+    uint16_t    contadorAttribute;
+    attribute_info *attributes;
 
 } typedef classCompleta;
 
 void imprimeTudoChar (char *, unsigned long);
 uint16_t getCounter(char *);
-unsigned int getConstante(char *, unsigned int, tagConstante * );
+unsigned int getConstante(char *, unsigned int, tagConstante *, uint8_t * );
 tagConstante* alocaPoolConstanteTable(uint16_t );
 int setConstantePool(char *, tagConstante *, unsigned );
 void imprimePoolConstante(tagConstante *, uint16_t );
@@ -77,8 +79,10 @@ void referenciaConstantePool(tagConstante *, uint16_t );
 uint16_t* alocaInterfaces(uint16_t );
 unsigned int setInterface (char *, uint16_t *, unsigned int , uint16_t );
 
+unsigned int setAttributes (char *, attribute_info *, unsigned int, uint16_t );
 unsigned int getAttribute(char *, unsigned int , attribute_info *);
 attribute_info* alocaAttribute(uint16_t );
+void imprimeAttribute(uint16_t, attribute_info*);
 
 field_info* alocaFields(uint16_t );
 unsigned int setField (char *, field_info *, unsigned int , uint16_t );
@@ -101,7 +105,7 @@ int main(int argc, char **argv){
     if(argc<3){
         printf("Sem argumentos \n");
     }else
-        printf("HA ARGUMENTOS!\n");
+        printf("Argumentos ok\n");
 
     //Definições de projeto
     //argumento 0 é o nome do executável
@@ -131,16 +135,13 @@ int main(int argc, char **argv){
     printf("magic number: %x\n", classe.magicNumber);
     classe.contadorPoolConstante=getCounter(buffer);
     printf("contador de constantes: %d\n", classe.contadorPoolConstante);
-    printf("tamanho do field: %lu\ntamnhanho do atrb: %lu\nfield mais atributo: %lu\n\n", sizeof(field_info), sizeof(attribute_info),(sizeof(field_info)+sizeof(attribute_info)));
 
     classe.constantPool=alocaPoolConstanteTable(classe.contadorPoolConstante);
-
-
 
     //getConstante(buffer, 10, constantPool);
     indice = setConstantePool(buffer, classe.constantPool, classe.contadorPoolConstante);
 
-   printf("TAMANHO DO INDICE DESPOIS DO SET CONSTANT POLL: %d\n", indice);
+   //printf("TAMANHO DO INDICE DESPOIS DO SET CONSTANT POLL: %d\n", indice);
 
 
     a=*(buffer+indice);
@@ -167,18 +168,15 @@ int main(int argc, char **argv){
     classe.contadorInterfaces=w;
     indice=indice+2;
 
-    printf("valor do indice antes de setar a interface: %d\n", indice);
     if(classe.contadorInterfaces!=0)
         classe.interfaces = alocaInterfaces(classe.contadorInterfaces);
     else
         classe.interfaces=NULL;
-    printf("contador de intefaces%d\n", classe.contadorInterfaces);
+    printf("contador de intefaces: %d\n", classe.contadorInterfaces);
 
     indice = setInterface (buffer, classe.interfaces, indice , classe.contadorInterfaces );
 
-    printf("valor do indice depois de setar a interface: %d\n", indice);
-
-    printf("*************access flag: 0x%.4x\nthis class referencia: %d\nsuper class reference: %d\n", classe.accessFlag, classe.thisClass, classe.superClass);
+    printf("access flag: 0x%.4x\nthis class referencia: %d\nsuper class reference: %d\n", classe.accessFlag, classe.thisClass, classe.superClass);
 
     a=*(buffer+indice);
     b=*(buffer+indice+1);
@@ -199,9 +197,8 @@ int main(int argc, char **argv){
     z=(a<<8)+b;
     classe.contadorMethod=z;
     indice=indice+2;
-    //indice=indice+2;
 
-    printf("contador de metodos: %d, indice no momento: %i\n", classe.contadorMethod, indice);
+    printf("contador de metodos: %d\n", classe.contadorMethod);
 
     if(classe.contadorMethod==0)
         classe.methods=NULL;
@@ -211,22 +208,43 @@ int main(int argc, char **argv){
     //field tem a mesma estrutura de method
     indice = setField(buffer, classe.methods, indice, classe.contadorMethod);
 
+    //Atributos da classe
+    if(indice<lSize){
+        a=*(buffer+indice);
+        b=*(buffer+indice+1);
+        z=(a<<8)+b;
+        classe.contadorAttribute=z;
+        indice=indice+2;
+    }else{
+        classe.contadorAttribute=0;
+    }
 
-    printf("\nPOOL DE CONSTANTES***********************************\n");
+    if(classe.contadorAttribute==0)
+        classe.attributes=NULL;
+    else{
+        classe.attributes = alocaAttribute(classe.contadorAttribute);
+    }
+    indice = setAttributes(buffer, classe.attributes, indice, classe.contadorAttribute);
+    printf("contador de atributos: %d\n", classe.contadorAttribute);
+
+    printf("\nPOOL DE CONSTANTES:\n");
     imprimePoolConstante(classe.constantPool, classe.contadorPoolConstante);
     printf("\n\n");
 
-    //printf("FIELDS:\n");
-    //imprimeField(classe.contadorFields, classe.fields);
+    printf("FIELDS:\n");
+    imprimeField(classe.contadorFields, classe.fields);
+
     printf("METHODS:\n");
     imprimeField(classe.contadorMethod, classe.methods);
 
-    referenciaConstantePool(classe.constantPool,23);
+    printf("CLASS' ATTRIBUTES:\n");
+    imprimeAttribute(classe.contadorAttribute, classe.attributes);
 
 
 
     //imprimeTudoChar(buffer, lSize);
     free(buffer);
+    //freeClassFile(classe);
     fclose(file);
 
 return 0;
@@ -242,20 +260,22 @@ void imprimeTudoChar (char *buffer, unsigned long lSize){
 
 void imprimePoolConstante(tagConstante *t, uint16_t counter){
     uint16_t a, b, i;
-    for(i=1; i<counter; i++){
+    for(i=0; i<(counter-1); i++){
             a=(((t+i)->valor.u4) >> 16) & 0x0000ffff;
             b=((t+i)->valor.u4) & 0x0000ffff;
             printf("[%u]\t",i);
-            if( (t+i)->tag==TAG1 ){
+            if( (t+i)->tag==0){
+                printf("\tbits menos significativos: %x\n", (t+i)->valor.u4);
+            }if( (t+i)->tag==TAG1 ){
                 printf("String: %s\n", (t+i)->itemString);
             }if( (t+i)->tag==TAG3 ){
                 printf("inteiro %d\n", (t+i)->valor.u4);
             }if( (t+i)->tag==TAG4 ){
                 printf("float %f\n", (float) (t+i)->valor.u4);
             }if( (t+i)->tag==TAG5 ){
-                printf("long %x + %x\n", (t+i)->valor.u4, (t+i)->valor2.u4);
+                printf("long bits mais significativo %x\n", (t+i)->valor.u4);
             }if( (t+i)->tag==TAG6 ){
-                printf("double %x + %x\n",  (t+i)->valor.u4, (t+i)->valor2.u4);
+                printf("double bits mais significativo %x\n",  (t+i)->valor.u4 );
             }if( (t+i)->tag==TAG7 ){
                 printf("Class reference %d \t",  (t+i)->valor.u2);
                 referenciaConstantePool(t,(t+i)->valor.u2); printf("\n");
@@ -309,14 +329,17 @@ tagConstante* alocaPoolConstanteTable(uint16_t counter){
 
 /** Retorna o indice do buffer, e preenche a tabela previamente alocada, sempre começa no indice 10 do buffer **/
 int setConstantePool(char *buffer, tagConstante *t, unsigned int counter){
-    unsigned int i, k, j=11;
+    unsigned int i, k, l, j=10;
+    uint8_t parte=0;
     for(i=0; i<counter; i++){
         /** k é o numero de bytes que foram percorridos quando se pegou um item **/
-        k=getConstante(buffer, j, (t+i));
+        k=getConstante(buffer, j, (t+i), &parte);
         /** j, que começa em 10, será o valor atual mais o tanto percorrido quando se pega um item **/
         j =  j + k;
-        if(getConstante(buffer, j, t)==-1)
+        if(k==-1){
+            j++;
             break;
+        }
         //printf("dentro do setconstante, j: %d\n", j);
     }
     return j;
@@ -325,7 +348,7 @@ int setConstantePool(char *buffer, tagConstante *t, unsigned int counter){
 }
 
 /** Preenche uma estrutura de constante e retorna o próximo indice a ser lido no buffer**/
-unsigned int getConstante(char *buffer, unsigned int indice, tagConstante *u){
+unsigned int getConstante(char *buffer, unsigned int indice, tagConstante *u, uint8_t *parte){
     //tagConstante u;
     uint32_t a,b,c,d,e,f,g,h, T;
     uint32_t ad,bd,cd,dd,ed,fd,gd,hd;
@@ -337,6 +360,8 @@ unsigned int getConstante(char *buffer, unsigned int indice, tagConstante *u){
     u->tag=T;
     //indice++;
 
+    if(*parte==0){
+      //  printf("parte 0, buffer 0 a 5: %d, %d, %d, %d, %d\n", *(buffer+indice), *(buffer+indice+1), *(buffer+indice+2), *(buffer+indice+3), *(buffer+indice+4));
         if(T == TAG1){
             a=*(buffer+indice+1);
             b=*(buffer+indice+2);
@@ -379,15 +404,11 @@ unsigned int getConstante(char *buffer, unsigned int indice, tagConstante *u){
             b=*(buffer+indice+2);
             c=*(buffer+indice+3);
             d=*(buffer+indice+4);
-            e=*(buffer+indice+5);
-            f=*(buffer+indice+6);
-            g=*(buffer+indice+7);
-            h=*(buffer+indice+8);
             w=((a<<24) & 0xff000000)+((b<<16) & 0x00ff0000)+((c<<8) & 0x0000ff00) + (d & 0x000000ff);
             u->valor.u4 = w;
-            w=((e<<24) & 0xff000000)+((f<<16) & 0x00ff0000)+((g<<8) & 0x0000ff00) + (h & 0x000000ff);
-            u->valor2.u4 = w;
-            return 9;
+            *parte=1;
+            //printf("tag: %d, valor(hex): %x\n", T, u->valor.u4);
+            return 5;
         }else{
 
           if(T==TAG7 || T==TAG8 || T==TAG16){
@@ -400,6 +421,19 @@ unsigned int getConstante(char *buffer, unsigned int indice, tagConstante *u){
             //printf("NAO TA CERTO, T=%d\n",T);
             return -1;
           } } } } }
+    }else{
+        //parte == 1
+        u->tag=0;
+        a=*(buffer+indice+0);
+        b=*(buffer+indice+1);
+        c=*(buffer+indice+2);
+        d=*(buffer+indice+3);
+        w=((a<<24) & 0xff000000)+((b<<16) & 0x00ff0000)+((c<<8) & 0x0000ff00) + (d & 0x000000ff);
+        u->valor.u4 = w;
+        *parte=0;
+        return 4;
+
+    }
 
 };
 
@@ -424,7 +458,7 @@ unsigned int setInterface (char *buffer, uint16_t *interfaces, unsigned int indi
     }
     return (indice+2+(2*i));
     }else{
-    printf("------------------------indice na interface: %d\n", indice);
+    //printf("------------------------indice na interface: %d\n", indice);
 	return indice;
     }
 }
@@ -443,7 +477,7 @@ unsigned int setField (char *buffer, field_info *field, unsigned int indice, uin
         return indice;
     else{
     for(i=0; i< counter; i++){
-        printf("======endereço do field: %li\n", (field+i));
+       // printf("======endereço do field: %li\n", (field+i));
         indice = getField(buffer, indice, (field+i));
     }
     return indice;
@@ -463,7 +497,7 @@ unsigned int getField(char *buffer, unsigned int indice, field_info *u){
     z=(a<<8)+b;
     indice += 2;
     u->access_flag=z;
-    printf("GET FIELD ACCESS FLAG: %d\n", u->access_flag);
+   // printf("GET FIELD ACCESS FLAG: %d\n", u->access_flag);
 
     /** name_index **/
     a=*(buffer+indice);
@@ -471,7 +505,7 @@ unsigned int getField(char *buffer, unsigned int indice, field_info *u){
     z=((a<<8)&0xff00)+(b&0x00ff);
     indice += 2;
     u->name_index=z;
-    printf("GET FIELD NAME INDEX: %d\n", u->name_index);
+   // printf("GET FIELD NAME INDEX: %d\n", u->name_index);
 
     /** descriptor index **/
     a=*(buffer+indice);
@@ -480,7 +514,7 @@ unsigned int getField(char *buffer, unsigned int indice, field_info *u){
     indice += 2;
     u->descriptor_index=z;
 
-    printf("GET FIELD DESCRIPTOR INDEX: %d\n", u->descriptor_index);
+   // printf("GET FIELD DESCRIPTOR INDEX: %d\n", u->descriptor_index);
 
     /** attribute count **/
     a=*(buffer+indice);
@@ -488,7 +522,7 @@ unsigned int getField(char *buffer, unsigned int indice, field_info *u){
     z=((a<<8)&0xff00)+(b&0x00ff);
     indice += 2;
     u->attribute_count=z;
-        printf("GET FIELD, attribute count: %d\n", u->attribute_count);
+       // printf("GET FIELD, attribute count: %d\n", u->attribute_count);
 
     /** atributes **/
     atrb = (attribute_info*)malloc(u->attribute_count * sizeof(attribute_info));
@@ -498,11 +532,10 @@ unsigned int getField(char *buffer, unsigned int indice, field_info *u){
 
     for(i=0; i<u->attribute_count; i++){
         indice = getAttribute(buffer, indice, (atrb+i));
-        printf("\nDEPOIS DO GET ATTRIBUTE: ATRB. NOME: %d ; ATRB. LENGHT: %d\n\n", (atrb+i)->attribute_name_index, (atrb+i)->attribute_lenght);
+       // printf("\nDEPOIS DO GET ATTRIBUTE: ATRB. NOME: %d ; ATRB. LENGHT: %d\n\n", (atrb+i)->attribute_name_index, (atrb+i)->attribute_lenght);
     }
     u->attributes=atrb;
 
-    printf("====endereco de atributo: %d\n", u->attributes);
     return indice;
 }
 
@@ -517,6 +550,19 @@ void imprimeField (uint16_t counter, field_info *f){
             printf("\tattrb. %d \n\t\t\tattribute name index: %d\n\t\t\t", j, (atrb+j)->attribute_name_index);
             printf("attribute lenght: %d\n", (atrb+j)->attribute_lenght);
         }
+    }
+}
+
+/** preenche a tabela de attributes já alocada e devolve o próximo byte do buffer, recebendo o byte em que começa **/
+unsigned int setAttributes (char *buffer, attribute_info *atrb, unsigned int indice, uint16_t counter){
+    uint16_t i;
+    if(counter==0)
+        return indice;
+    else{
+    for(i=0; i< counter; i++){
+        indice = getAttribute(buffer, indice, (atrb+i));
+    }
+    return indice;
     }
 }
 
@@ -541,7 +587,7 @@ unsigned int getAttribute(char *buffer, unsigned int indice, attribute_info *u){
     indice += 2;
     u->attribute_name_index=w;
 
-        printf("GET ATTRIBUTE, attribute name index: %d\n", u->attribute_name_index);
+       // printf("GET ATTRIBUTE, attribute name index: %d\n", u->attribute_name_index);
 
     /** attribute lenght **/
     a=*(buffer+indice);
@@ -550,10 +596,10 @@ unsigned int getAttribute(char *buffer, unsigned int indice, attribute_info *u){
     d=*(buffer+indice+3);
     z=(a<<24)+(b<<16)+(c<<8)+d;
     indice += 4;
-    printf("\n\nindice: %d, z: %d\n\n", indice, z);
+    //printf("\n\nindice: %d, z: %d\n\n", indice, z);
     u->attribute_lenght=z;
 
-        printf("GET ATTRIBUTE, attribute lenght: %d\n", u->attribute_lenght);
+       // printf("GET ATTRIBUTE, attribute lenght: %d\n", u->attribute_lenght);
     /** info **/
     u->info = (uint8_t*) malloc (sizeof(uint8_t)*(u->attribute_lenght));
     for(i=0; i<u->attribute_lenght; i++){
@@ -563,18 +609,31 @@ unsigned int getAttribute(char *buffer, unsigned int indice, attribute_info *u){
     return (indice+i);
 }
 
-void referenciaConstantePool(tagConstante *u, uint16_t ref){
-    uint16_t i=0, j=0, a, b;
-    while(i<ref){
-        if((u+i)->tag==TAG5 || (u+i)->tag==TAG6)
-            j++;
-        i++;
+void imprimeAttribute(uint16_t counter, attribute_info *f){
+    uint16_t j;
+    for(j=0; j<counter; j++){
+            printf("attrb. %d \n\t\tattribute name index: %d\n\t\t", j, (f)->attribute_name_index);
+            printf("attribute lenght: %d\n", (f)->attribute_lenght);
     }
-    i=i-j;
-    a=(((u+i)->valor.u4) >> 16) & 0x0000ffff;
-    b=((u+i)->valor.u4) & 0x0000ffff;
-    if((u+i)->tag==TAG1){
-        printf("%s",(u+i)->itemString);
+}
+
+void referenciaConstantePool(tagConstante *u, uint16_t ref){
+    uint16_t a, b;
+
+    if((u+ref-1)->tag==TAG1){
+        printf("%s",(u+ref-1)->itemString);
+    }else{
+        a=((u+ref-1)->valor.u2);printf("a: %d ", a);
+        if((u+a-1)->tag==TAG1){
+            printf("%s",(u+a-1)->itemString);
+        }
+
+       /* b=((u+ref-1)->valor.u4) & 0x0000ffff;
+        if((u+a-1)->tag==TAG1){
+            printf("%s\t",(u+ref-1)->itemString);
+        }if((u+b-1)->tag==TAG1){
+            printf("%s\t",(u+ref-1)->itemString);
+        }*/
     }
 
 }
