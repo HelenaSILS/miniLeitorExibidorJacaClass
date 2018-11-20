@@ -743,8 +743,6 @@ uint8_t getTipoAttribute(attribute_info *u, tagConstante *t){
     char *nome;
     nome=referenciaConstantePool(t, u->attribute_name_index);
     if(strcmp(nome, "Code")==0){
-
-        printf("ta em code\n");
         return CODE;
     }else{
     if(strcmp(nome, "ConstantValue")==0){
@@ -825,7 +823,9 @@ printf("chegou em estrutura attribute, imprindo o atrb lenght: %d\n", atrb->attr
                     a=*(buffer+indice); b=*(buffer+indice+1); w=(a<<8)+b; indice += 2;
                     ex_tb->catch_type = w;
                 }
-            }
+            }else{
+		atrb->info.Code.exception_table=NULL;
+		}
             a=*(buffer+indice); b=*(buffer+indice+1); w=(a<<8)+b; indice += 2;
             atrb->info.Code.attributes_count=w;
 printf("numero de atributos de atributos: %d\n", atrb->info.Code.attributes_count);
@@ -835,10 +835,12 @@ printf("numero de atributos de atributos: %d\n", atrb->info.Code.attributes_coun
             }
             break;
 
-        case SOURCE_FILE: // 8
+
+        case SOURCE_FILE: 
             a=*(buffer+indice); b=*(buffer+indice+1); w=(a<<8)+b; indice += 2;
             atrb->info.SourceFile.sourcefile_index = w;
             break;
+
 
         case LINE_NUMBER_TABLE:
             a=*(buffer+indice); b=*(buffer+indice+1); w=(a<<8)+b; indice += 2;
@@ -846,26 +848,64 @@ printf("numero de atributos de atributos: %d\n", atrb->info.Code.attributes_coun
             if(atrb->info.LineNumberTable.line_number_table_length>0){
                 atrb->info.LineNumberTable.line_number_table=(line_number_table_type*)malloc(sizeof(line_number_table_type)*atrb->info.LineNumberTable.line_number_table_length);
                 ln=atrb->info.LineNumberTable.line_number_table;
-                for(i=0; i<atrb->info.LineNumberTable.line_number_table_length; i++){
+                for(ln = atrb->info.LineNumberTable.line_number_table; 
+                            ln < (atrb->info.LineNumberTable.line_number_table + atrb->info.LineNumberTable.line_number_table_length); ln++){
                         a=*(buffer+indice); b=*(buffer+indice+1); w=(a<<8)+b; indice += 2;
                         ln->start_pc=w;
                         a=*(buffer+indice); b=*(buffer+indice+1); w=(a<<8)+b; indice += 2;
                         ln->line_number=w;
-                        ln++;
                     }
-            }
+            }else{
+		atrb->info.LineNumberTable.line_number_table=NULL;
+		}
             break;
+
+
     }printf("corrompeu o lenght? %d\n", atrb->attribute_lenght);
     return indice;
 }
 
 void imprimeAttribute(uint16_t counter, attribute_info *f, tagConstante *t){
     uint16_t j, k;
+    uint8_t tipo;
     for(j=0; j<counter; j++){
             k=(f+j)->attribute_name_index;
-            printf("\tatrb. %d \n\t\tattribute name index: %d\t", j, k);
+            printf("\tatrb. %d \n\t\tattribute name index: #%d\t", j, k);
             referenciaConstantePool(t,k);
             printf("\n\t\tattribute lenght: %d\n", (f+j)->attribute_lenght);
+	    tipo=getTipoAttribute(f, t);
+	    switch (tipo){
+		    case CODE:
+			printf("\t\t\ttamanho do max stack: %d\n", f->info.Code.max_stack);
+			printf("\t\t\ttamanho do max locals: %d\n", f->info.Code.max_locals);
+			printf("\t\t\ttamanho do codigo: %d\n", f->info.Code.code_length);
+			printf("\t\t\ttamanho da tabela de excecao: %d\n", f->info.Code.exception_table_length);
+			printf("\t\t\tnumero de atributos do atributo: %d\n", f->info.Code.attributes_count);
+			printf("\t\t\tATRIBUTO(S) DO ATRIBUTO CODE:\n");
+			if(f->info.Code.attributes_count>0){
+				imprimeAttribute(f->info.Code.attributes_count, f->info.Code.attributes, t);
+				}
+			break;
+
+		    case SOURCE_FILE:
+			printf("\t\t\tSource file index: #%d ", f->info.SourceFile.sourcefile_index);
+			referenciaConstantePool(t, f->info.SourceFile.sourcefile_index);
+			printf("\n");
+			break;
+			
+		    case LINE_NUMBER_TABLE:
+			printf("\t\t\ttamanho da tabela de line number: %d\n", f->info.LineNumberTable.line_number_table_length);
+			if(f->info.LineNumberTable.line_number_table_length>0){
+				for(line_number_table_type *ln=f->info.LineNumberTable.line_number_table; 
+					ln<(+f->info.LineNumberTable.line_number_table_length+f->info.LineNumberTable.line_number_table); ln++){
+
+					printf("\t\t\tStar pc: %d\t",ln->start_pc);
+					printf("\t\t\tLine number: %d\n",ln->line_number);
+				}
+			}
+			break;
+
+    		}
     }
 }
 
