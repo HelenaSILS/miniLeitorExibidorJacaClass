@@ -192,7 +192,7 @@ tagConstante* alocaPoolConstanteTable(uint16_t );
 int setConstantePool(char *, tagConstante *, unsigned );
 void imprimePoolConstante(tagConstante *, uint16_t );
 
-char* referenciaConstantePool(tagConstante *, uint16_t );
+char* referenciaConstantePool(tagConstante *, uint16_t, uint8_t );
 
 void imprimeAccessFlag(uint16_t);
 
@@ -366,7 +366,6 @@ int main(int argc, char **argv){
     imprimeAttribute(classe.contadorAttribute, classe.attributes, classe.constantPool);
 
 
-
     //imprimeTudoChar(buffer, lSize);
     free(buffer);
     //freeClassFile(classe);
@@ -403,31 +402,31 @@ void imprimePoolConstante(tagConstante *t, uint16_t counter){
                 printf("double \tbits mais significativo %x\n",  (t+i)->valor.u4 );
             }if( (t+i)->tag==TAG7 ){
                 printf("Class reference %d \t",  (t+i)->valor.u2);
-                referenciaConstantePool(t,(t+i)->valor.u2); printf("\n");
+                referenciaConstantePool(t,(t+i)->valor.u2,1); printf("\n");
             }if( (t+i)->tag==TAG8 ){
                 printf("String reference %d \t",  (t+i)->valor.u2);
-                referenciaConstantePool(t,(t+i)->valor.u2); printf("\n");
+                referenciaConstantePool(t,(t+i)->valor.u2,1); printf("\n");
             }if( (t+i)->tag==TAG9 ){
                 printf("Field Reference \tclasse: %d\t\tnome %d\n\t\t\t\t", a, b);
-                referenciaConstantePool(t,a); printf("\t");
-                referenciaConstantePool(t,b); printf("\n");
+                referenciaConstantePool(t,a,1); printf("\t");
+                referenciaConstantePool(t,b,1); printf("\n");
             }if( (t+i)->tag==TAG10 ){
                 printf("Method Reference  \tclasse: %d\t\tnome %d\n\t\t\t\t", a, b);
-                referenciaConstantePool(t,a); printf("\t");
-                referenciaConstantePool(t,b); printf("\n");
+                referenciaConstantePool(t,a,1); printf("\t");
+                referenciaConstantePool(t,b,1); printf("\n");
             }if( (t+i)->tag==TAG11 ){
                 printf("Interface method  \tclasse: %d\t\tnome %d\n\t\t\t\t", a, b);
-                referenciaConstantePool(t,a); printf("\t");
-                referenciaConstantePool(t,b); printf("\n");
+                referenciaConstantePool(t,a,1); printf("\t");
+                referenciaConstantePool(t,b,1); printf("\n");
             }if( (t+i)->tag==TAG12 ){
                 printf("Name and type  \tdescriptor %d\t\tnome %d\n\t\t\t\t", a, b);
-                referenciaConstantePool(t,a); printf("\t");
-                referenciaConstantePool(t,b); printf("\n");
+                referenciaConstantePool(t,a,1); printf("\t");
+                referenciaConstantePool(t,b,1); printf("\n");
             }if( (t+i)->tag==TAG15 ){
                 a=(((t+i)->valor.u4) >> 16) & 0x000000ff;
                 printf("Method handle\tclasse: %d\t\tnome %d\n\t\t\t\t", a, b);
-                referenciaConstantePool(t,a); printf("\t");
-                referenciaConstantePool(t,b); printf("\n");
+                referenciaConstantePool(t,a,1); printf("\t");
+                referenciaConstantePool(t,b,1); printf("\n");
             }if( (t+i)->tag==TAG16 ){
                 printf("Method type %.2d\n", (t+i)->valor.u2);
             }if( (t+i)->tag==TAG18 ){
@@ -591,7 +590,7 @@ unsigned int setInterface (char *buffer, uint16_t *interfaces, unsigned int indi
 /** aloca o vetor de fields, que são valores que apontam para algum lugar do pool de constantes **/
 field_info* alocaFields(uint16_t counter){
     field_info *t;
-    t=(field_info*) malloc (sizeof(uint16_t)*(counter+1));
+    t=(field_info*) calloc (sizeof(field_info), (counter+1));
     return t;
 }
 
@@ -650,7 +649,7 @@ unsigned int getField(char *buffer, unsigned int indice, field_info *u, tagConst
        // printf("GET FIELD, attribute count: %d\n", u->attribute_count);
 
     /** atributes **/
-    atrb = (attribute_info*)malloc(u->attribute_count * sizeof(attribute_info));
+    atrb = (attribute_info*)calloc(u->attribute_count, sizeof(attribute_info));
     if(atrb==NULL){
         printf("\n\nATRB NULL\n\n");
         u->attributes=NULL;
@@ -672,11 +671,11 @@ void imprimeField (uint16_t counter, field_info *f, tagConstante *t){
         printf("field %d:\taccess flag: %d\t",i, (f+i)->access_flag);
         imprimeAccessFlag((f+i)->access_flag);
         printf("\n\t\tname:\t\t\t");
-        referenciaConstantePool(t,(f+i)->name_index);
+        referenciaConstantePool(t,(f+i)->name_index,1);
         printf("\n\t\t");
         printf("descriptor:\t\t");
-        referenciaConstantePool(t, (f+i)->descriptor_index);
-        printf("\n\t\tattributes counter: %d\n\t", (f+i)->attribute_count);
+        referenciaConstantePool(t, (f+i)->descriptor_index,1);
+        printf("\n\t\tattributes counter: %d\n\t", (f+i)->attribute_count,1);
         printf("ATRIBUTOS: \n");
         imprimeAttribute((f+i)->attribute_count, (f+i)->attributes, t);
         printf("\n");
@@ -734,14 +733,13 @@ unsigned int getAttribute(char *buffer, unsigned int indice, attribute_info *u, 
     }*/
     tipo=getTipoAttribute(u, t);
     indice=estruturaAttribute(buffer,indice,tipo,u,t);
-    printf("===ATTRIBUTE LENGHT depois da estrutura attribute: %d\n", u->attribute_lenght);
 
     return indice;
 }
 
 uint8_t getTipoAttribute(attribute_info *u, tagConstante *t){
     char *nome;
-    nome=referenciaConstantePool(t, u->attribute_name_index);
+    nome=referenciaConstantePool(t, u->attribute_name_index,0);
     if(strcmp(nome, "Code")==0){
         return CODE;
     }else{
@@ -779,36 +777,34 @@ uint32_t estruturaAttribute (char *buffer, unsigned int indice, uint8_t tipo, at
     uint16_t w;
     uint32_t z, i;
     line_number_table_type *ln;
-printf("chegou em estrutura attribute, imprindo o atrb lenght: %d\n", atrb->attribute_lenght);
+
     switch (tipo){
     case CODE:
             a=*(buffer+indice); b=*(buffer+indice+1); w=(a<<8)+b; indice += 2;
             atrb->info.Code.max_stack=w;
-            printf("tamanho do max stack: %d %d\n", atrb->info.Code.max_stack, w);
+
 
             a=*(buffer+indice); b=*(buffer+indice+1); w=(a<<8)+b; indice += 2;
             atrb->info.Code.max_locals=w;
 
-            printf("tamanho do max locals: %d %d\n", atrb->info.Code.max_locals, w);
 
             a=*(buffer+indice); b=*(buffer+indice+1); c=*(buffer+indice+2); d=*(buffer+indice+3);
             z=(a<<24)+(b<<16)+(c<<8)+d; indice += 4;
             atrb->info.Code.code_length=z;
-            printf("tamanho do codigo: %d e %d\n", atrb->info.Code.code_length, z);
 
             if(atrb->info.Code.code_length>0){
-                atrb->info.Code.code = (uint8_t *) malloc(atrb->info.Code.code_length * sizeof(uint8_t));
+                atrb->info.Code.code = (uint8_t *) calloc(atrb->info.Code.code_length, sizeof(uint8_t));
                 for(i=0; i < atrb->info.Code.code_length; i++)
                     *(atrb->info.Code.code+i) = *(buffer+indice+i);
             }
             indice=indice+i;
-            printf("alocou o codigo\n");
+
             a=*(buffer+indice); b=*(buffer+indice+1); w=(a<<8)+b; indice += 2;
             atrb->info.Code.exception_table_length = w;
-            printf("tamanho da tabela de excecao: %d\n", w);
+
             if(atrb->info.Code.exception_table_length>0){
-                atrb->info.Code.exception_table =(exception_table_type *) malloc(atrb->info.Code.exception_table_length * sizeof(exception_table_type));
-            printf("tem excecao\n");
+                atrb->info.Code.exception_table =(exception_table_type *) calloc(atrb->info.Code.exception_table_length, sizeof(exception_table_type));
+
                 for(exception_table_type * ex_tb = atrb->info.Code.exception_table;
                         ex_tb < (atrb->info.Code.exception_table + atrb->info.Code.exception_table_length); ex_tb++){
                     a=*(buffer+indice); b=*(buffer+indice+1); w=(a<<8)+b; indice += 2;
@@ -828,15 +824,15 @@ printf("chegou em estrutura attribute, imprindo o atrb lenght: %d\n", atrb->attr
 		}
             a=*(buffer+indice); b=*(buffer+indice+1); w=(a<<8)+b; indice += 2;
             atrb->info.Code.attributes_count=w;
-printf("numero de atributos de atributos: %d\n", atrb->info.Code.attributes_count);
+
             if(atrb->info.Code.attributes_count>0){
-                atrb->info.Code.attributes=(attribute_info*)malloc(sizeof(attribute_info)*atrb->info.Code.attributes_count);
+                atrb->info.Code.attributes=(attribute_info*)calloc(sizeof(attribute_info), atrb->info.Code.attributes_count);
                 indice=setAttributes(buffer,atrb->info.Code.attributes,indice,atrb->info.Code.attributes_count,tag);
             }
             break;
 
 
-        case SOURCE_FILE: 
+        case SOURCE_FILE:
             a=*(buffer+indice); b=*(buffer+indice+1); w=(a<<8)+b; indice += 2;
             atrb->info.SourceFile.sourcefile_index = w;
             break;
@@ -847,8 +843,8 @@ printf("numero de atributos de atributos: %d\n", atrb->info.Code.attributes_coun
             atrb->info.LineNumberTable.line_number_table_length = w;
             if(atrb->info.LineNumberTable.line_number_table_length>0){
                 atrb->info.LineNumberTable.line_number_table=(line_number_table_type*)malloc(sizeof(line_number_table_type)*atrb->info.LineNumberTable.line_number_table_length);
-                ln=atrb->info.LineNumberTable.line_number_table;
-                for(ln = atrb->info.LineNumberTable.line_number_table; 
+                //ln=atrb->info.LineNumberTable.line_number_table;
+                for(ln = atrb->info.LineNumberTable.line_number_table;
                             ln < (atrb->info.LineNumberTable.line_number_table + atrb->info.LineNumberTable.line_number_table_length); ln++){
                         a=*(buffer+indice); b=*(buffer+indice+1); w=(a<<8)+b; indice += 2;
                         ln->start_pc=w;
@@ -861,7 +857,7 @@ printf("numero de atributos de atributos: %d\n", atrb->info.Code.attributes_coun
             break;
 
 
-    }printf("corrompeu o lenght? %d\n", atrb->attribute_lenght);
+    }
     return indice;
 }
 
@@ -871,7 +867,7 @@ void imprimeAttribute(uint16_t counter, attribute_info *f, tagConstante *t){
     for(j=0; j<counter; j++){
             k=(f+j)->attribute_name_index;
             printf("\tatrb. %d \n\t\tattribute name index: #%d\t", j, k);
-            referenciaConstantePool(t,k);
+            referenciaConstantePool(t,k,1);
             printf("\n\t\tattribute lenght: %d\n", (f+j)->attribute_lenght);
 	    tipo=getTipoAttribute(f, t);
 	    switch (tipo){
@@ -889,14 +885,14 @@ void imprimeAttribute(uint16_t counter, attribute_info *f, tagConstante *t){
 
 		    case SOURCE_FILE:
 			printf("\t\t\tSource file index: #%d ", f->info.SourceFile.sourcefile_index);
-			referenciaConstantePool(t, f->info.SourceFile.sourcefile_index);
+			referenciaConstantePool(t, f->info.SourceFile.sourcefile_index,1);
 			printf("\n");
 			break;
-			
+
 		    case LINE_NUMBER_TABLE:
 			printf("\t\t\ttamanho da tabela de line number: %d\n", f->info.LineNumberTable.line_number_table_length);
 			if(f->info.LineNumberTable.line_number_table_length>0){
-				for(line_number_table_type *ln=f->info.LineNumberTable.line_number_table; 
+				for(line_number_table_type *ln=f->info.LineNumberTable.line_number_table;
 					ln<(+f->info.LineNumberTable.line_number_table_length+f->info.LineNumberTable.line_number_table); ln++){
 
 					printf("\t\t\tStar pc: %d\t",ln->start_pc);
@@ -909,16 +905,18 @@ void imprimeAttribute(uint16_t counter, attribute_info *f, tagConstante *t){
     }
 }
 
-char* referenciaConstantePool(tagConstante *u, uint16_t ref){
+char* referenciaConstantePool(tagConstante *u, uint16_t ref, uint8_t print){
     uint16_t a, b;
 
     if((u+ref-1)->tag==TAG1){
-        printf("%s",(u+ref-1)->itemString);
+        if(print)
+            printf("%s",(u+ref-1)->itemString);
         return (u+ref-1)->itemString;
     }else{
         a=((u+ref-1)->valor.u2);
         if((u+a-1)->tag==TAG1){
-            printf("%s",(u+a-1)->itemString);
+            if(print)
+                printf("%s",(u+a-1)->itemString);
             return (u+a-1)->itemString;
         }
     }
