@@ -2,6 +2,35 @@
 int main(int argc, char **argv){
 
     FILE *file;
+    int i;
+    
+
+    if(argc<3){
+        printf("Sem argumentos \n");
+    }else
+        printf("Arquivo encontrado\n");
+
+    //Defini√ß√µes de projeto
+    //argumento 0 √© o nome do execut√°vel
+    //argumento 1 √© a op√ß√£o
+    //argumento 2 √© o nome do arquivo
+
+    //file √© o .class
+    if((file = fopen(argv[2], "rb"))==NULL){
+            printf("erro, nao foi possivel abrir o arquivo\n");
+    }
+
+    i=inicializaLeitor(file);
+    if(i!=0)
+       return 1;
+    
+    //freeClassFile(classe);
+    fclose(file);
+
+return 0;
+}
+
+int inicializaLeitor (FILE *file){
     char *buffer;
     long lSize=1;
     int indice=0;
@@ -12,28 +41,13 @@ int main(int argc, char **argv){
     classCompleta classe;
     constant_pool_info tc, *constantPool;
 
-    if(argc<3){
-        printf("Sem argumentos \n");
-    }else
-        printf("Argumentos OK\n");
-
-    //DefiniÁıes de projeto
-    //argumento 0 È o nome do execut·vel
-    //argumento 1 È a opÁ„o
-    //argumento 2 È o nome do arquivo
-
-    //file È o .class
-    if((file = fopen(argv[2], "rb"))==NULL){
-            printf("erro, nao foi possivel abrir o arquivo\n");
-    }
-
-     // obtain file size:
+    // tamanho da arquivo:
     fseek (file , 0 , SEEK_END);
     lSize = ftell(file);
     rewind(file);
     buffer=(char*)malloc(sizeof(char)*lSize);
     fread(buffer, 1, lSize, file);
-    printf("tamanho do buffer em bytes: %li\n", lSize);
+    printf("tamanho do buffer do arquivo em bytes: %li\n", lSize);
 
     i=buffer[0];
     a=*(buffer+indice);
@@ -43,16 +57,14 @@ int main(int argc, char **argv){
     z=(a<<24)+(b<<16)+(c<<8)+d;
     classe.magicNumber=z;
     printf("magic number: %x\n", classe.magicNumber);
+    if(classe.magicNumber!=0xcafebabe)
+	return 1;
     classe.contadorPoolConstante=getCounter(buffer);
     printf("contador de constantes: %d\n", classe.contadorPoolConstante);
 
     classe.constantPool=alocaPoolConstanteTable(classe.contadorPoolConstante);
 
-    //getConstante(buffer, 10, constantPool);
-    indice = setConstantePool(buffer, classe.constantPool, classe.contadorPoolConstante);
-
-   //printf("TAMANHO DO INDICE DESPOIS DO SET CONSTANT POLL: %d\n", indice);
-
+    indice = setConstantePool(buffer, classe.constantPool, classe.contadorPoolConstante); //======================================
 
     a=*(buffer+indice);
     b=*(buffer+indice+1);
@@ -89,7 +101,11 @@ int main(int argc, char **argv){
     printf("access flag: 0x%.4x\t", classe.accessFlag);
     imprimeAccessFlag(classe.accessFlag);
 
-    printf("\nthis class referencia: %d\nsuper class reference: %d\n", classe.thisClass, classe.superClass);
+    printf("\nthis class reference: #%d ", classe.thisClass);
+    referenciaConstantePool(classe.constantPool, classe.thisClass,1);
+
+    printf("\nsuper class reference: #%d ", classe.superClass);
+    referenciaConstantePool(classe.constantPool, classe.superClass,1);
 
     a=*(buffer+indice);
     b=*(buffer+indice+1);
@@ -97,7 +113,7 @@ int main(int argc, char **argv){
     classe.contadorFields=z;
     indice=indice+2;
 
-    printf("contador de fields: %d\n", classe.contadorFields);
+    printf("\ncontador de fields: %d\n", classe.contadorFields);
 
     if(classe.contadorFields==0)
         classe.fields=NULL;
@@ -144,22 +160,21 @@ int main(int argc, char **argv){
     imprimePoolConstante(classe.constantPool, classe.contadorPoolConstante);
     printf("\n\n");
 
-    printf("FIELDS:\n");
-    imprimeField(classe.contadorFields, classe.fields, classe.constantPool);
+    printf("\nFIELDS:\n");
+    imprimeField(classe.contadorFields, classe.fields, classe.constantPool, 'F');
 
-    printf("METHODS:\n");
-    imprimeField(classe.contadorMethod, classe.methods, classe.constantPool);
+    printf("\nMETHODS:\n");
+    imprimeField(classe.contadorMethod, classe.methods, classe.constantPool, 'M');
 
-    printf("CLASS' ATTRIBUTES:\n");
+    printf("\nCLASS' ATTRIBUTES:\n");
     imprimeAttribute(classe.contadorAttribute, classe.attributes, classe.constantPool);
 
 
     //imprimeTudoChar(buffer, lSize);
     free(buffer);
-    //freeClassFile(classe);
-    fclose(file);
 
-return 0;
+    return 0;
+
 }
 
 void imprimeTudoChar (char *buffer, unsigned long lSize){
@@ -231,7 +246,7 @@ uint16_t getCounter(char *buffer){
     return a += b;
 }
 
-/** Guarda memÛria necess·ria para alocar o pool de constantes**/
+/** Guarda mem√≥ria necess√°ria para alocar o pool de constantes**/
 constant_pool_info* alocaPoolConstanteTable(uint16_t counter){
     constant_pool_info *t;
     t = (constant_pool_info*) malloc (sizeof(constant_pool_info)*counter);
@@ -239,14 +254,14 @@ constant_pool_info* alocaPoolConstanteTable(uint16_t counter){
 
 }
 
-/** Retorna o indice do buffer, e preenche a tabela previamente alocada, sempre comeÁa no indice 10 do buffer **/
+/** Retorna o indice do buffer, e preenche a tabela previamente alocada, sempre come√ßa no indice 10 do buffer **/
 int setConstantePool(char *buffer, constant_pool_info *t, unsigned int counter){
     unsigned int i, k, l, j=10;
     uint8_t parte=0;
     for(i=0; i<counter; i++){
-        /** k È o numero de bytes que foram percorridos quando se pegou um item **/
+        /** k √© o numero de bytes que foram percorridos quando se pegou um item **/
         k=getConstante(buffer, j, (t+i), &parte);
-        /** j, que comeÁa em 10, ser· o valor atual mais o tanto percorrido quando se pega um item **/
+        /** j, que come√ßa em 10, ser√° o valor atual mais o tanto percorrido quando se pega um item **/
         j =  j + k;
         if(k==-1){
             j++;
@@ -259,7 +274,7 @@ int setConstantePool(char *buffer, constant_pool_info *t, unsigned int counter){
 
 }
 
-/** Preenche uma estrutura de constante e retorna o prÛximo indice a ser lido no buffer**/
+/** Preenche uma estrutura de constante e retorna o pr√≥ximo indice a ser lido no buffer**/
 unsigned int getConstante(char *buffer, unsigned int indice, constant_pool_info *u, uint8_t *parte){
     //constant_pool_info u;
     uint32_t a,b,c,d,e,f,g,h, T;
@@ -349,14 +364,14 @@ unsigned int getConstante(char *buffer, unsigned int indice, constant_pool_info 
 
 };
 
-/** aloca o vetor de interface, que s„o valores que apontam para algum lugar do pool de constantes **/
+/** aloca o vetor de interface, que s√£o valores que apontam para algum lugar do pool de constantes **/
 uint16_t* alocaInterfaces(uint16_t counter){
     uint16_t *t;
     t=(uint16_t*) malloc (sizeof(uint16_t)*counter);
     return t;
 }
 
-/** preenche o vetor de interfaces j· alocado e devolve o prÛximo byte do buffer, recebendo o byte em que comeÁa **/
+/** preenche o vetor de interfaces j√° alocado e devolve o pr√≥ximo byte do buffer, recebendo o byte em que come√ßa **/
 unsigned int setInterface (char *buffer, uint16_t *interfaces, unsigned int indice, uint16_t counter){
     uint16_t i, z;
     uint8_t a, b;
@@ -375,28 +390,28 @@ unsigned int setInterface (char *buffer, uint16_t *interfaces, unsigned int indi
     }
 }
 
-/** aloca o vetor de fields, que s„o valores que apontam para algum lugar do pool de constantes **/
+/** aloca o vetor de fields, que s√£o valores que apontam para algum lugar do pool de constantes **/
 field_info* alocaFields(uint16_t counter){
     field_info *t;
     t=(field_info*) calloc (sizeof(field_info), (counter+1));
     return t;
 }
 
-/** preenche a tabela de fields j· alocada e devolve o prÛximo byte do buffer, recebendo o byte em que comeÁa **/
+/** preenche a tabela de fields j√° alocada e devolve o pr√≥ximo byte do buffer, recebendo o byte em que come√ßa **/
 unsigned int setField (char *buffer, field_info *field, unsigned int indice, uint16_t counter, constant_pool_info *tag){
     uint16_t i;
     if(counter==0)
         return indice;
     else{
     for(i=0; i< counter; i++){
-       // printf("======endereÁo do field: %li\n", (field+i));
+       // printf("======endere√ßo do field: %li\n", (field+i));
         indice = getField(buffer, indice, (field+i), tag);
     }
     return indice;
     }
 }
 
-/** Preenche uma estrutura de field e retorna o prÛximo indice a ser lido no buffer**/
+/** Preenche uma estrutura de field e retorna o pr√≥ximo indice a ser lido no buffer**/
 unsigned int getField(char *buffer, unsigned int indice, field_info *u, constant_pool_info *tag){
     //constant_pool_info u;
     uint16_t a,b,c,d,e,f,g,h, T;
@@ -409,7 +424,6 @@ unsigned int getField(char *buffer, unsigned int indice, field_info *u, constant
     z=(a<<8)+b;
     indice += 2;
     u->access_flag=z;
-   // printf("GET FIELD ACCESS FLAG: %d\n", u->access_flag);
 
     /** name_index **/
     a=*(buffer+indice);
@@ -417,7 +431,6 @@ unsigned int getField(char *buffer, unsigned int indice, field_info *u, constant
     z=((a<<8)&0xff00)+(b&0x00ff);
     indice += 2;
     u->name_index=z;
-   // printf("GET FIELD NAME INDEX: %d\n", u->name_index);
 
     /** descriptor index **/
     a=*(buffer+indice);
@@ -426,7 +439,6 @@ unsigned int getField(char *buffer, unsigned int indice, field_info *u, constant
     indice += 2;
     u->descriptor_index=z;
 
-   // printf("GET FIELD DESCRIPTOR INDEX: %d\n", u->descriptor_index);
 
     /** attribute count **/
     a=*(buffer+indice);
@@ -434,43 +446,45 @@ unsigned int getField(char *buffer, unsigned int indice, field_info *u, constant
     z=((a<<8)&0xff00)+(b&0x00ff);
     indice += 2;
     u->attribute_count=z;
-       // printf("GET FIELD, attribute count: %d\n", u->attribute_count);
 
     /** atributes **/
     atrb = (attribute_info*)calloc(u->attribute_count, sizeof(attribute_info));
     if(atrb==NULL){
         printf("\n\nATRB NULL\n\n");
         u->attributes=NULL;
-    //atrb È uma vari·vel auxiliar
+    //atrb √© uma vari√°vel auxiliar
     }else{
         for(i=0; i<u->attribute_count; i++){
             indice = getAttribute(buffer, indice, (atrb+i), tag);
-       // printf("\nDEPOIS DO GET ATTRIBUTE: ATRB. NOME: %d ; ATRB. LENGHT: %d\n\n", (atrb+i)->attribute_name_index, (atrb+i)->attribute_lenght);
         }
         u->attributes=atrb;
     }
     return indice;
 }
 
-void imprimeField (uint16_t counter, field_info *f, constant_pool_info *t){
+void imprimeField (uint16_t counter, field_info *f, constant_pool_info *t, char c){
     uint16_t i, j;
     attribute_info *atrb;
     for(i=0; i< counter; i++){
-        printf("field %d:\taccess flag: %d\t",i, (f+i)->access_flag);
+	if(c=='F')
+        	printf("field [%d]:\taccess flag: %d\t",i, (f+i)->access_flag);
+	else
+        	printf("method [%d]:\taccess flag: %d\t",i, (f+i)->access_flag);
+		
         imprimeAccessFlag((f+i)->access_flag);
         printf("\n\t\tname:\t\t\t");
         referenciaConstantePool(t,(f+i)->name_index,1);
         printf("\n\t\t");
         printf("descriptor:\t\t");
         referenciaConstantePool(t, (f+i)->descriptor_index,1);
-        printf("\n\t\tattributes counter: %d\n\t", (f+i)->attribute_count,1);
+        printf("\n\t\tattributes counter: %d\n\t\t", (f+i)->attribute_count);
         printf("ATRIBUTOS: \n");
         imprimeAttribute((f+i)->attribute_count, (f+i)->attributes, t);
         printf("\n");
     }
 }
 
-/** preenche a tabela de attributes j· alocada e devolve o prÛximo byte do buffer, recebendo o byte em que comeÁa **/
+/** preenche a tabela de attributes j√° alocada e devolve o pr√≥ximo byte do buffer, recebendo o byte em que come√ßa **/
 unsigned int setAttributes (char *buffer, attribute_info *atrb, unsigned int indice, uint16_t counter, constant_pool_info *tag){
     uint16_t i;
     if(counter==0)
@@ -491,7 +505,7 @@ attribute_info* alocaAttribute(uint16_t counter){
 }
 
 
-/** Preenche uma estrutura de attribute e retorna o prÛximo indice a ser lido no buffer**/
+/** Preenche uma estrutura de attribute e retorna o pr√≥ximo indice a ser lido no buffer**/
 unsigned int getAttribute(char *buffer, unsigned int indice, attribute_info *u, constant_pool_info *t){
     uint8_t a, b, c, d, tipo;
     uint16_t w;
@@ -723,9 +737,9 @@ void imprimeAttribute(uint16_t counter, attribute_info *f, constant_pool_info *t
     uint8_t tipo;
     for(j=0; j<counter; j++){
             k=(f+j)->attribute_name_index;
-            printf("\tatrb. %d \n\t\tattribute name index: #%d\t", j, k);
+            printf("\t\tattribute [%d] \n\t\t\tattribute name index: #%d\t", j, k);
             referenciaConstantePool(t,k,1);
-            printf("\n\t\tattribute lenght: %d\n", (f+j)->attribute_lenght);
+            printf("\n\t\t\tattribute lenght: %d\n", (f+j)->attribute_lenght);
             tipo=getTipoAttribute(f, t);
 
 	    switch (tipo){
@@ -733,11 +747,11 @@ void imprimeAttribute(uint16_t counter, attribute_info *f, constant_pool_info *t
             printf("\t\t\tCode:\n");
 			printf("\t\t\ttamanho do max stack: %d\n", f->info.Code.max_stack);
 			printf("\t\t\ttamanho do max locals: %d\n", f->info.Code.max_locals);
-			printf("\t\t\ttamanho do codigo: %d\nCode propriamente dito:\n\toffset:\tbytecode\n", f->info.Code.code_length);
+			printf("\t\t\ttamanho do codigo: %d\n\t\t\tCode propriamente dito:\n\t\t\t\toffset:\tbytecode\n", f->info.Code.code_length);
 			imprimeCode (t, f->info.Code.code, f->info.Code.code_length);
 
 			printf("\t\t\ttamanho da tabela de excecao: %d\n", f->info.Code.exception_table_length);
-			printf("\t\t\tnumero de atributos do atributo: %d\n", f->info.Code.attributes_count);
+			printf("\t\t\tnumero de atributos do atributo: %d\n\n", f->info.Code.attributes_count);
 			printf("\t\t\tATRIBUTO(S) DO ATRIBUTO CODE:\n");
 			if(f->info.Code.attributes_count>0){
 				imprimeAttribute(f->info.Code.attributes_count, f->info.Code.attributes, t);
@@ -764,7 +778,7 @@ void imprimeAttribute(uint16_t counter, attribute_info *f, constant_pool_info *t
             }if( (t-1+(f->info.ConstantValue.constantvalue_index))->tag==TAG5 ){
                 dd=((t-1+(f->info.ConstantValue.constantvalue_index))->cte.valor.u4);
                 dd=dd<<32;
-                printf("long \tbits mais significativo %l\n", (long) ( dd |((t+f->info.ConstantValue.constantvalue_index)->cte.valor.u4)) );
+                printf("long \tbits mais significativo %ld\n", (long) ( dd |((t+f->info.ConstantValue.constantvalue_index)->cte.valor.u4)) );
             }if( (t-1+(f->info.ConstantValue.constantvalue_index))->tag==TAG6 ){
                 dd=((t-1+(f->info.ConstantValue.constantvalue_index))->cte.valor.u4);
                 dd=dd<<32;
@@ -823,13 +837,13 @@ void imprimeAttribute(uint16_t counter, attribute_info *f, constant_pool_info *t
             printf("\t\t\ttamanho da tabela de classes internas: %d \n", f->info.InnerClasses.number_of_classes);
             if(f->info.InnerClasses.number_of_classes>0){
                 for(classes_type *cl=f->info.InnerClasses.classes; cl<(f->info.InnerClasses.number_of_classes+f->info.InnerClasses.classes); cl++){
-                    printf("\t\t\tinner class info index: #%d ");
+                    printf("\t\t\tinner class info index: #%d ", cl->inner_class_info_index);
                     referenciaConstantePool(t, cl->inner_class_info_index, 1); printf("\n");
-                    printf("\t\t\touter class info index: #%d ");
+                    printf("\t\t\touter class info index: #%d ", cl->outer_class_info_index);
                     referenciaConstantePool(t, cl->outer_class_info_index, 1); printf("\n");
-                    printf("\t\t\tinner name index: #%d ");
+                    printf("\t\t\tinner name index: #%d ", cl->inner_name_index);
                     referenciaConstantePool(t, cl->inner_name_index, 1); printf("\n");
-                    printf("\t\t\tinner class access flags: #%d ");
+                    printf("\t\t\tinner class access flags: #%d ", cl->inner_class_access_flags);
                     imprimeAccessFlag(cl->inner_class_access_flags); printf("\n");
 
                 }
@@ -912,11 +926,11 @@ void imprimeAccessFlag(uint16_t a){
 
 void imprimeCode (constant_pool_info *t, uint8_t *byte, uint32_t lenght){
     uint32_t offset;
-    uint16_t a, b;
+    uint16_t a, b, c;
     uint64_t d;
 
     for(offset=0; offset<lenght; offset++){
-        printf("\t%d\t", offset);
+        printf("\t\t\t\t%d\t", offset);
         switch(*(byte+offset)){
         case aaload:
             printf("aaload"); break;
@@ -1216,28 +1230,48 @@ void imprimeCode (constant_pool_info *t, uint8_t *byte, uint32_t lenght){
             printf("saload"); break;
         case sastore:
             printf("sastore"); break;
-        case swap: //======================================== ? ============================
+        case swap: 
             printf("swap"); break;
         case aload:
-            printf("aload"); break;
+            printf("aload index do frame: %u",*(byte+offset+1)); 
+	    offset=offset+1;
+	break;
         case astore:
-            printf("astore"); break;
+            printf("astore index do frame: %u",*(byte+offset+1)); 
+	    offset=offset+1;
+	break;
         case dload:
-            printf("dload"); break;
+            printf("dload index do frame: %u",*(byte+offset+1)); 
+	    offset=offset+1;
+	break;
         case dstore:
-            printf("dstore"); break;
+            printf("dstore index do frame: %u",*(byte+offset+1)); 
+	    offset=offset+1;
+	break;
         case fload:
-            printf("fload"); break;
+            printf("fload index do frame: %u",*(byte+offset+1)); 
+	    offset=offset+1;
+	break;
         case fstore:
-            printf("fstore"); break;
+            printf("fstore index do frame: %u",*(byte+offset+1)); 
+	    offset=offset+1;
+	break;
         case iload:
-            printf("iload"); break;
+            printf("iload index do frame: %u",*(byte+offset+1)); 
+	    offset=offset+1;
+	break;
         case istore:
-            printf("istore"); break;
+            printf("istore index do frame: %u",*(byte+offset+1)); 
+	    offset=offset+1;
+	break;
         case lload:
-            printf("lload"); break;
+            printf("lload index do frame: %u",*(byte+offset+1)); 
+	    offset=offset+1;
+	break;
         case lstore:
-            printf("lstore"); break;
+            printf("lstore index do frame: %u",*(byte+offset+1)); 
+	    offset=offset+1;
+	break;
         case ret:
             printf("ret ao returnAddress: %x", *(byte+offset+1));
             offset++;
@@ -1282,15 +1316,21 @@ void imprimeCode (constant_pool_info *t, uint8_t *byte, uint32_t lenght){
              break;
 
         case anewarray:
-            printf("anewarray: #%d ");
+            printf("anewarray: ");
             a=*(byte+offset+1);
             b=*(byte+offset+2);
-            a=a<<8; a=a|b;
+            a=a<<8; a=a|b; printf("#%d ",a);
             referenciaConstantePool(t,a,1);
             offset=+2;
             break;
         case checkcast:
-            printf("checkcast"); break;
+            printf("checkcast");        
+	    a=*(byte+offset+1);
+            b=*(byte+offset+2);
+            a=a<<8; a=a|b; printf("#%d ",a);
+            referenciaConstantePool(t,a,1);
+            offset=+2;
+            break;
         case instanceof:
             printf("instanceof"); break;
         case new:
@@ -1315,21 +1355,61 @@ void imprimeCode (constant_pool_info *t, uint8_t *byte, uint32_t lenght){
         case if_icmpne:
             printf("if_icmpne"); break;
         case ifeq:
-            printf("ifeq"); break;
+            printf("ifeq branch: ");
+	    a=*(byte+offset+1);
+            b=*(byte+offset+2);
+            a=a<<8; a=a|b;
+	    printf("%u",a);
+	break;
         case ifge:
-            printf("ifge"); break;
+            printf("ifge branch: ");
+	    a=*(byte+offset+1);
+            b=*(byte+offset+2);
+            a=a<<8; a=a|b;
+	    printf("%u",a);
+	break;
         case ifgt:
-            printf("ifgt"); break;
+            printf("ifgt branch: ");
+	    a=*(byte+offset+1);
+            b=*(byte+offset+2);
+            a=a<<8; a=a|b;
+	    printf("%u",a);
+	break;
         case ifle:
-            printf("ifle"); break;
+            printf("ifle branch: ");
+	    a=*(byte+offset+1);
+            b=*(byte+offset+2);
+            a=a<<8; a=a|b;
+	    printf("%u",a);
+	break;
         case iflt:
-            printf("iflt"); break;
+            printf("iflt branch: ");
+	    a=*(byte+offset+1);
+            b=*(byte+offset+2);
+            a=a<<8; a=a|b;
+	    printf("%u",a);
+	break;
         case ifne:
-            printf("ifne"); break;
+            printf("ifne branch: ");
+	    a=*(byte+offset+1);
+            b=*(byte+offset+2);
+            a=a<<8; a=a|b;
+	    printf("%u",a);
+	break;
         case ifnonnull:
-            printf("ifnonnull"); break;
+            printf("ifnonnull branch: ");
+	    a=*(byte+offset+1);
+            b=*(byte+offset+2);
+            a=a<<8; a=a|b;
+	    printf("%u",a);
+	break;
         case ifnull:
-            printf("ifnull"); break;
+            printf("ifnull branch: ");
+	    a=*(byte+offset+1);
+            b=*(byte+offset+2);
+            a=a<<8; a=a|b;
+	    printf("%u",a);
+	break;
         case jsr:
             printf("jst branch: %d", (*(byte+offset+1)<<8|*(byte+offset+2)));
             offset=+2;
@@ -1343,40 +1423,62 @@ void imprimeCode (constant_pool_info *t, uint8_t *byte, uint32_t lenght){
                 printf("int %d",(t+a-1)->cte.valor.u4);
             else{
                 if((t+a-1)->tag==TAG4)
-                    printf("float %f",(t+a-1)->cte.valor.u4);
+                    printf("float %f",(float)(t+a-1)->cte.valor.u4);
                 else
                     referenciaConstantePool(t,a,1);
             }
             offset=offset+2;
             break;
         case getfield:
-            printf("getfield"); break;
-        case getstatic:
-            printf("getstatic"); break;
-        case invokespecial:
-            printf("invokespecial");
+            printf("getfield "); 
             a=*(byte+offset+1); b= *(byte+offset+2);
             a=a<<8; a=a|b;
             if((t+a-1)->tag==TAG10 || (t+a-1)->tag==TAG11){   //method ou interface method
                 b=(((t+a-1)->cte.valor.u4) >> 16) & 0x000000ff;
                 a=((t+a-1)->cte.valor.u4) & 0x000000ff;
-                printf("classe: ", b);
+                printf("classe: #%d ", b);
                 referenciaConstantePool(t,b,1);
-                printf("\tnome: ");
+                printf("\tnome: #%d ", a);
+                referenciaConstantePool(t,a,1);
+            }
+            offset=offset+2;
+        case getstatic:
+            printf("getstatic ");
+            a=*(byte+offset+1); b= *(byte+offset+2);
+            a=a<<8; a=a|b; 
+            if((t+a-1)->tag==TAG9){   //method ou interface method
+                b=(((t+a-1)->cte.valor.u4) >> 16) & 0x000000ff;
+                a=((t+a-1)->cte.valor.u4) & 0x000000ff;
+                printf("classe: #%d ", b);
+                referenciaConstantePool(t,b,1);
+                printf("\tnome: #%d ", a);
+                referenciaConstantePool(t,a,1);
+            }
+            offset=offset+2;
+        case invokespecial:
+            printf("invokespecial ");
+            a=*(byte+offset+1); b= *(byte+offset+2);
+            a=a<<8; a=a|b;
+            if((t+a-1)->tag==TAG10 || (t+a-1)->tag==TAG11){   //method ou interface method
+                b=(((t+a-1)->cte.valor.u4) >> 16) & 0x000000ff;
+                a=((t+a-1)->cte.valor.u4) & 0x000000ff;
+                printf("classe: #%d ", b);
+                referenciaConstantePool(t,b,1);
+                printf("\tnome: #%d ", a);
                 referenciaConstantePool(t,a,1);
             }
             offset=offset+2;
             break;
         case invokestatic:
-            printf("invokestatic");
+            printf("invokestatic ");
             a=*(byte+offset+1); b= *(byte+offset+2);
             a=a<<8; a=a|b;
             if((t+a-1)->tag==TAG10 || (t+a-1)->tag==TAG11){   //method ou interface method
                 b=(((t+a-1)->cte.valor.u4) >> 16) & 0x000000ff;
                 a=((t+a-1)->cte.valor.u4) & 0x000000ff;
-                printf("classe: ", b);
+                printf("classe: #%d ", b);
                 referenciaConstantePool(t,b,1);
-                printf("\tnome: ");
+                printf("\tnome: #%d ", a);
                 referenciaConstantePool(t,a,1);
             }
             offset=offset+2;
@@ -1388,9 +1490,9 @@ void imprimeCode (constant_pool_info *t, uint8_t *byte, uint32_t lenght){
             if((t+a-1)->tag==TAG10){                        //method
                 b=(((t+a-1)->cte.valor.u4) >> 16) & 0x000000ff;
                 a=((t+a-1)->cte.valor.u4) & 0x000000ff;
-                printf("classe: ", b);
+                printf("classe: #%d ", b);
                 referenciaConstantePool(t,b,1);
-                printf("\tnome: ");
+                printf("\tnome: #%d ", a);
                 referenciaConstantePool(t,a,1);
             }
             offset=offset+2;
@@ -1402,9 +1504,9 @@ void imprimeCode (constant_pool_info *t, uint8_t *byte, uint32_t lenght){
             if((t+a-1)->tag==9){                        //field
                 b=(((t+a-1)->cte.valor.u4) >> 16) & 0x000000ff;
                 a=((t+a-1)->cte.valor.u4) & 0x000000ff;
-                printf("classe: ", b);
+                printf("classe: #%d ", b);
                 referenciaConstantePool(t,b,1);
-                printf("\tnome: ");
+                printf("\tnome: #%d ",a);
                 referenciaConstantePool(t,a,1);
             }
             offset=offset+2;
@@ -1416,9 +1518,9 @@ void imprimeCode (constant_pool_info *t, uint8_t *byte, uint32_t lenght){
             if((t+a-1)->tag==9){                        //field
                 b=(((t+a-1)->cte.valor.u4) >> 16) & 0x000000ff;
                 a=((t+a-1)->cte.valor.u4) & 0x000000ff;
-                printf("classe: ", b);
+                printf("classe: #%d ", b);
                 referenciaConstantePool(t,b,1);
-                printf("\tnome: ");
+                printf("\tnome: #%d ", a);
                 referenciaConstantePool(t,a,1);
             }
             offset=offset+2;
@@ -1455,7 +1557,7 @@ void imprimeCode (constant_pool_info *t, uint8_t *byte, uint32_t lenght){
             offset=offset+3;
             break;
         case goto_w:
-            printf("goto_w %l", (*(byte+offset+1)<<24 | *(byte+offset+2)<<16 | *(byte+offset+3)<<8 | *(byte+offset+4)));
+            printf("goto_w %d", (*(byte+offset+1)<<24 | *(byte+offset+2)<<16 | *(byte+offset+3)<<8 | *(byte+offset+4)));
             offset=offset+4;
             break;
         case jsr_w:
@@ -1464,23 +1566,69 @@ void imprimeCode (constant_pool_info *t, uint8_t *byte, uint32_t lenght){
             break;
         case invokeinterface:
             printf("invokeinterface ");
-            a=(*(byte+offset+1)<<8 | *(byte+offset+2));
-            referenciaConstantePool(t,a,1);
-            printf("count: %d byte final: %d",*(byte+offset+3),*(byte+offset+4) );
+            if((t+a-1)->tag==TAG11){   //method ou interface method
+                b=(((t+a-1)->cte.valor.u4) >> 16) & 0x000000ff;
+                a=((t+a-1)->cte.valor.u4) & 0x000000ff;
+                printf("classe: #%d ", b);
+                referenciaConstantePool(t,b,1);
+                printf("\tnome: #%d ", a);
+                referenciaConstantePool(t,a,1);
+            }
             offset=offset+4;
             break;
         case invokedynamic:
-            printf("invokedynamic");
-                        break;
-
-                        // 4 ou + bytes
-                        //  <0-3 byte pad>; default (s4); n (s4); key1, offobtain_label1 ... keyn, offobtain_labeln (s4)
+            printf("invokedynamic ");
+	    a=(*(byte+offset+1)<<8 | *(byte+offset+2));
+            referenciaConstantePool(t,a,1);
+	    offset=offset+4;
+            break;
         case lookupswitch:
-            printf("lookupswitch");
-                        break;
+            printf("lookupswitch ");
+	    if(offset%4==0){ 				//3 bytes de pad
+		offset=offset+3;
+		}else{
+			if(offset%4==1){		//2 bytes de pad
+				offset=offset+2;
+			}else{
+				if(offset%4==2){	//1 byte de pad
+					offset=offset+1;
+				}}}		
+	    a= *(byte+offset+1)<<24 | *(byte+offset+2)<<16 | *(byte+offset+3)<<8 | *(byte+offset+4); 		//default
+	    b= *(byte+offset+5)<<24 | *(byte+offset+6)<<16 | *(byte+offset+7)<<8 | *(byte+offset+8); 		//npairs
+	    printf("default: %d npair(s): %u", a, b);
+	    offset=offset+8;
+	    for(int i=0; i<b; i++){
+		a= *(byte+offset+1)<<24 | *(byte+offset+2)<<16 | *(byte+offset+3)<<8 | *(byte+offset+4); 
+		printf("key[%u]: %d\t", i, a);
+		a= *(byte+offset+5)<<24 | *(byte+offset+6)<<16 | *(byte+offset+7)<<8 | *(byte+offset+8);
+		printf("offset[%u]: %d", i,a);
+		offset=offset+8;
+		}
+        break;
                         //  <0-3 byte pad>; default (s4); low (s4); high (s4); label1 ... labeln (s4)
         case tableswitch:
-            printf("tableswitch");
+            printf("tableswitch ");
+	    if(offset%4==0){ 				//3 bytes de pad
+		offset=offset+3;
+		}else{
+			if(offset%4==1){		//2 bytes de pad
+				offset=offset+2;
+			}else{
+				if(offset%4==2){	//1 byte de pad
+					offset=offset+1;
+				}}}		
+	    a= *(byte+offset+1)<<24 | *(byte+offset+2)<<16 | *(byte+offset+3)<<8 | *(byte+offset+4); 		//default
+	    b= *(byte+offset+5)<<24 | *(byte+offset+6)<<16 | *(byte+offset+7)<<8 | *(byte+offset+8); 		//low
+	    printf("default: %d low: %d ", a, b);
+	    a= *(byte+offset+9)<<24 | *(byte+offset+10)<<16 | *(byte+offset+11)<<8 | *(byte+offset+12);		//high
+	    offset=offset+12;
+	    printf("high: %d ", a);
+	    c=a-b+1;
+	    for(int i=0; i<c; i++){
+		a= *(byte+offset+1)<<24 | *(byte+offset+2)<<16 | *(byte+offset+3)<<8 | *(byte+offset+4); 
+		printf("jump offset[%u]: %d\t", i, a);
+		offset=offset+4;
+		}
             break;
                         // 3 ou 5 bytes
         case wide:
@@ -1513,5 +1661,4 @@ void imprimeCode (constant_pool_info *t, uint8_t *byte, uint32_t lenght){
     printf("\n");
     }
 }
-
 
